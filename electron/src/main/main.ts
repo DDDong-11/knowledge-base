@@ -50,7 +50,15 @@ async function boot(): Promise<void> {
     );
   }
   const dataDir = path.join(app.getPath('userData'), 'kernel-data');
-  kernel = await startKernel({ jarPath, dataDir });
+  kernel = await startKernel({
+    jarPath,
+    dataDir,
+    onExit: ({ code, signal }) => {
+      console.error(`kernel exited unexpectedly code=${code} signal=${signal}`);
+      // Orderly quit; before-quit will call stop() (idempotent).
+      app.quit();
+    },
+  });
   registerIpc();
   await createWindow();
 }
