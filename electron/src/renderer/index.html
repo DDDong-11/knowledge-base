@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+    />
+    <title>知识库联调</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 16px; max-width: 880px; }
+      section { border: 1px solid #ccc; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+      label { display: block; margin: 8px 0 4px; }
+      input, textarea { width: 100%; box-sizing: border-box; }
+      textarea { min-height: 80px; font-family: ui-monospace, monospace; }
+      button { margin-right: 8px; margin-top: 8px; }
+      pre { background: #f6f8fa; padding: 8px; overflow: auto; }
+      .row { display: flex; gap: 8px; align-items: center; }
+      .row input { flex: 1; }
+    </style>
+  </head>
+  <body>
+    <h1>个人开发知识库 · 联调页</h1>
+    <p id="meta">端口：…</p>
+
+    <section>
+      <h2>Health</h2>
+      <button id="btn-health" type="button">GET /api/health</button>
+      <pre id="out-health"></pre>
+    </section>
+
+    <section>
+      <h2>新建片段</h2>
+      <label>title <input id="title" value="联调示例" /></label>
+      <label>content <textarea id="content">console.log('kb')</textarea></label>
+      <label>tags（逗号分隔） <input id="tags" value="demo,electron" /></label>
+      <button id="btn-create" type="button">POST /api/snippets</button>
+      <pre id="out-create"></pre>
+    </section>
+
+    <section>
+      <h2>搜索</h2>
+      <div class="row">
+        <input id="q" value="联调" />
+        <button id="btn-search" type="button">GET /api/snippets/search</button>
+      </div>
+      <pre id="out-search"></pre>
+    </section>
+
+    <script src="./renderer.js"></script>
+  </body>
+</html>
