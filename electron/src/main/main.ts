@@ -60,6 +60,8 @@ const quitting = { done: false };
 app.whenReady().then(boot).catch(async (err) => {
   console.error(err);
   if (kernel) await kernel.stop();
+  // Mark quitting so before-quit does not preventDefault and force exit(0).
+  quitting.done = true;
   app.exit(1);
 });
 
