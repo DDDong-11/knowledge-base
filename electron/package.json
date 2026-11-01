@@ -8,7 +8,9 @@
     "build": "tsc -p tsconfig.json && node scripts/copy-renderer.mjs",
     "test": "npm run build && node --test \"dist/main/**/*.test.js\"",
     "start": "npm run build && electron .",
-    "package-kernel": "cd ../java-kernel && ./mvnw -DskipTests package"
+    "package-kernel": "cd ../java-kernel && ./mvnw -DskipTests package",
+    "gen-icon": "node scripts/gen-tray-icon.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

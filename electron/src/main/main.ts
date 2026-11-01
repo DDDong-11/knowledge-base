@@ -1,25 +1,19 @@
-import { app, BrowserWindow, clipboard, ipcMain } from 'electron';
+import { app, clipboard, ipcMain, type Tray } from 'electron';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { defaultJarPath, startKernel, type RunningKernel } from './kernelLauncher';
 import { registerIpc } from './ipc';
+import { createPanel, type Panel } from './panel';
+import { createTray } from './tray';
 
+// 边界：Electron 只做视图与转发，数据全部由 Java 内核负责。
 let kernel: RunningKernel | null = null;
-let mainWindow: BrowserWindow | null = null;
+let panel: Panel | null = null;
+let tray: Tray | null = null; // 保持引用，防止被 GC 后图标消失
 
-async function createWindow(): Promise<void> {
-  mainWindow = new BrowserWindow({
-    width: 900,
-    height: 700,
-    webPreferences: {
-      preload: path.join(__dirname, '..', 'preload', 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-    },
-  });
-  await mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
-}
+const quitting = { done: false };
+
+if (process.platform === 'darwin') app.dock?.hide(); // 菜单栏常驻应用，不显示 Dock 图标
 
 async function boot(): Promise<void> {
   const jarPath = defaultJarPath();
@@ -40,17 +34,42 @@ async function boot(): Promise<void> {
       app.quit();
     },
   });
+
+  const p = createPanel({
+    preloadPath: path.join(__dirname, '..', 'preload', 'preload.js'),
+    rendererFile: path.join(__dirname, '..', 'renderer', 'index.html'),
+    rendererUrl: process.env.KB_RENDERER_URL,
+    pin: process.env.KB_PANEL_PIN === '1',
+  });
+  panel = p;
+  p.window.on('close', (e) => {
+    // 关闭 = 隐藏；真正退出只走托盘菜单「退出」
+    if (!quitting.done) {
+      e.preventDefault();
+      p.hide();
+    }
+  });
+
   registerIpc({
     ipcMain,
     getKernel: () => kernel,
-    isTrustedSender: (sender) => mainWindow !== null && sender === mainWindow.webContents,
+    isTrustedSender: (sender) => p.isTrusted(sender),
     writeClipboard: (text) => clipboard.writeText(text),
-    hidePanel: () => mainWindow?.hide(),
+    hidePanel: () => p.hide(),
   });
-  await createWindow();
-}
 
-const quitting = { done: false };
+  tray = createTray({
+    iconPath: path.join(__dirname, '..', '..', 'assets', 'trayTemplate.png'),
+    onToggle: (bounds) => p.toggle(bounds),
+    onOpen: () => p.show(tray?.getBounds()),
+    onQuit: () => app.quit(),
+  });
+
+  // Linux/Windows 托盘可能不可见（或 bounds 为 0），启动时先显示一次面板
+  if (process.platform !== 'darwin') {
+    p.window.once('ready-to-show', () => p.show(tray?.getBounds()));
+  }
+}
 
 app.whenReady().then(boot).catch(async (err) => {
   console.error(err);
@@ -61,12 +80,20 @@ app.whenReady().then(boot).catch(async (err) => {
 });
 
 app.on('before-quit', (e) => {
-  if (quitting.done || !kernel) return;
+  if (quitting.done || !kernel) {
+    quitting.done = true;
+    return;
+  }
   e.preventDefault();
   quitting.done = true;
-  kernel.stop().finally(() => app.exit(0));
+  kernel.stop().finally(() => {
+    panel?.destroy();
+    tray?.destroy();
+    app.exit(0);
+  });
 });
 
+// 菜单栏常驻：所有窗口关闭也不退出
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  /* keep running */
 });
