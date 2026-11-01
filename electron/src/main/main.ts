@@ -1,8 +1,8 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, clipboard, ipcMain } from 'electron';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { defaultJarPath, startKernel, type RunningKernel } from './kernelLauncher';
-import type { SnippetRequest } from './kernelClient';
+import { registerIpc } from './ipc';
 
 let kernel: RunningKernel | null = null;
 let mainWindow: BrowserWindow | null = null;
@@ -19,25 +19,6 @@ async function createWindow(): Promise<void> {
     },
   });
   await mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
-}
-
-function registerIpc(): void {
-  ipcMain.handle('kb:health', async () => {
-    if (!kernel) throw new Error('kernel not started');
-    return kernel.client.health();
-  });
-  ipcMain.handle('kb:createSnippet', async (_evt, body: SnippetRequest) => {
-    if (!kernel) throw new Error('kernel not started');
-    return kernel.client.createSnippet(body);
-  });
-  ipcMain.handle('kb:search', async (_evt, q: string, limit?: number) => {
-    if (!kernel) throw new Error('kernel not started');
-    return kernel.client.search(q, limit ?? 50);
-  });
-  ipcMain.handle('kb:meta', async () => {
-    if (!kernel) throw new Error('kernel not started');
-    return { port: kernel.port };
-  });
 }
 
 async function boot(): Promise<void> {
@@ -59,7 +40,13 @@ async function boot(): Promise<void> {
       app.quit();
     },
   });
-  registerIpc();
+  registerIpc({
+    ipcMain,
+    getKernel: () => kernel,
+    isTrustedSender: (sender) => mainWindow !== null && sender === mainWindow.webContents,
+    writeClipboard: (text) => clipboard.writeText(text),
+    hidePanel: () => mainWindow?.hide(),
+  });
   await createWindow();
 }
 

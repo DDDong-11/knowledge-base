@@ -1,3 +1,4 @@
+// 临时联调页（第 5 步 Task 4 将替换为 React 面板）
 function $(id: string): HTMLElement {
   const el = document.getElementById(id);
   if (!el) throw new Error(`#${id} missing`);
@@ -11,7 +12,9 @@ function show(id: string, value: unknown): void {
 async function main(): Promise<void> {
   try {
     const meta = await window.kb.meta();
-    $('meta').textContent = `内核端口：${meta.port}（经主进程 HTTP，带 X-KB-Token）`;
+    $('meta').textContent = meta.ok
+      ? `内核端口：${meta.data.port}（经主进程 HTTP，带 X-KB-Token）`
+      : `meta 失败：${meta.error.message}`;
   } catch (e) {
     $('meta').textContent = `meta 失败：${e instanceof Error ? e.message : e}`;
   }
@@ -42,7 +45,7 @@ async function main(): Promise<void> {
   $('btn-search').addEventListener('click', async () => {
     const q = ($('q') as HTMLInputElement).value.trim();
     try {
-      show('out-search', await window.kb.search(q, 20));
+      show('out-search', await window.kb.search(q, { limit: 20 }));
     } catch (e) {
       show('out-search', e instanceof Error ? e.message : e);
     }

@@ -1,34 +1,13 @@
-export type SnippetRequest = {
-  title: string;
-  content?: string;
-  tags?: string[];
-};
-
-export type SnippetResponse = {
-  id: number;
-  title: string;
-  content: string;
-  tags: string[];
-  createTime: string;
-  updateTime: string;
-};
-
-export type SearchHit = {
-  snippet: SnippetResponse;
-  score: number;
-  matchedFields: string[];
-};
-
-export type SearchResponse = {
-  query: string;
-  total: number;
-  hits: SearchHit[];
-};
-
-export type HealthResponse = {
-  status: string;
-  app: string;
-};
+import type {
+  FieldError,
+  Health,
+  ListOptions,
+  SearchOptions,
+  SearchResult,
+  Snippet,
+  SnippetInput,
+  SnippetPage,
+} from '../shared/kbApi';
 
 export type KernelClientOptions = {
   baseUrl: string;
@@ -40,13 +19,15 @@ export class KernelHttpError extends Error {
   readonly status: number;
   readonly error?: string;
   readonly path?: string;
+  readonly fieldErrors?: FieldError[];
 
-  constructor(status: number, message: string, error?: string, path?: string) {
+  constructor(status: number, message: string, error?: string, path?: string, fieldErrors?: FieldError[]) {
     super(message);
     this.name = 'KernelHttpError';
     this.status = status;
     this.error = error;
     this.path = path;
+    this.fieldErrors = fieldErrors;
   }
 }
 
@@ -64,6 +45,13 @@ async function parseJson(res: Response): Promise<unknown> {
   }
 }
 
+function query(params: Record<string, string | number | undefined>): string {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v !== undefined) qs.set(k, String(v));
+  const s = qs.toString();
+  return s ? `?${s}` : '';
+}
+
 export function createKernelClient(opts: KernelClientOptions) {
   const fetchImpl = opts.fetchImpl ?? fetch;
   const baseUrl = opts.baseUrl;
@@ -79,30 +67,41 @@ export function createKernelClient(opts: KernelClientOptions) {
     const res = await fetchImpl(joinUrl(baseUrl, path), { ...init, headers });
     const body = await parseJson(res);
     if (!res.ok) {
-      const errBody = body as { message?: string; error?: string; path?: string } | undefined;
+      const errBody = body as
+        | { message?: string; error?: string; path?: string; fieldErrors?: FieldError[] }
+        | undefined;
       throw new KernelHttpError(
         res.status,
         errBody?.message ?? `HTTP ${res.status}`,
         errBody?.error,
         errBody?.path,
+        errBody?.fieldErrors ?? undefined,
       );
     }
-    return body as T;
+    return (body === undefined ? null : body) as T;
   }
 
   return {
-    health(): Promise<HealthResponse> {
-      return request<HealthResponse>('/api/health');
+    health(): Promise<Health> {
+      return request<Health>('/api/health');
     },
-    createSnippet(body: SnippetRequest): Promise<SnippetResponse> {
-      return request<SnippetResponse>('/api/snippets', {
-        method: 'POST',
-        body: JSON.stringify(body),
-      });
+    listSnippets(o: ListOptions = {}): Promise<SnippetPage> {
+      return request<SnippetPage>(`/api/snippets${query({ page: o.page, size: o.size, kind: o.kind })}`);
     },
-    search(q: string, limit = 50): Promise<SearchResponse> {
-      const qs = new URLSearchParams({ q, limit: String(limit) });
-      return request<SearchResponse>(`/api/snippets/search?${qs.toString()}`);
+    getSnippet(id: number): Promise<Snippet> {
+      return request<Snippet>(`/api/snippets/${id}`);
+    },
+    createSnippet(body: SnippetInput): Promise<Snippet> {
+      return request<Snippet>('/api/snippets', { method: 'POST', body: JSON.stringify(body) });
+    },
+    updateSnippet(id: number, body: SnippetInput): Promise<Snippet> {
+      return request<Snippet>(`/api/snippets/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+    },
+    deleteSnippet(id: number): Promise<null> {
+      return request<null>(`/api/snippets/${id}`, { method: 'DELETE' });
+    },
+    search(q: string, o: SearchOptions = {}): Promise<SearchResult> {
+      return request<SearchResult>(`/api/snippets/search${query({ q, limit: o.limit ?? 50, kind: o.kind })}`);
     },
   };
 }
