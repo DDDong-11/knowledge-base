@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import type { KbApi } from '../shared/kbApi';
 
 declare global {
