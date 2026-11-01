@@ -1,5 +1,6 @@
 package com.dongzhiwei.kb.web;
 
+import com.dongzhiwei.kb.domain.SnippetKind;
 import com.dongzhiwei.kb.dto.*;
 import com.dongzhiwei.kb.search.SearchService;
 import com.dongzhiwei.kb.service.SnippetService;
@@ -55,14 +56,16 @@ public class SnippetController {
 
     @GetMapping
     public PageResponse<SnippetResponse> list(@RequestParam(defaultValue = "0") @Min(0) int page,
-                                              @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return snippetService.list(page, size);
+                                              @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+                                              @RequestParam(required = false) SnippetKind kind) {
+        return snippetService.list(page, size, kind);
     }
 
     @GetMapping("/search")
     public SearchResponse search(@RequestParam @NotBlank @Size(max = 200) String q,
-                                 @RequestParam(defaultValue = "50") @Min(1) @Max(200) int limit) {
-        List<SearchHit> hits = searchService.search(q, limit);
+                                 @RequestParam(defaultValue = "50") @Min(1) @Max(200) int limit,
+                                 @RequestParam(required = false) SnippetKind kind) {
+        List<SearchHit> hits = searchService.search(q, limit, kind);
         return new SearchResponse(q, hits.size(), hits);
     }
 }

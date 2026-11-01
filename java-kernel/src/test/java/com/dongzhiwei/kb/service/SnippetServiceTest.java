@@ -1,5 +1,7 @@
 package com.dongzhiwei.kb.service;
 
+import com.dongzhiwei.kb.domain.SnippetKind;
+import com.dongzhiwei.kb.domain.SnippetSource;
 import com.dongzhiwei.kb.dto.SnippetRequest;
 import com.dongzhiwei.kb.dto.SnippetResponse;
 import com.dongzhiwei.kb.repository.SnippetRepository;
@@ -59,5 +61,40 @@ class SnippetServiceTest {
         service.create(new SnippetRequest("2", "", List.of("Java", "git")));
         service.create(new SnippetRequest("3", "", null));
         assertThat(service.allTags()).containsExactly("git", "java", "spring");
+    }
+
+    @Test
+    void defaultsKindNoteAndSourceManual() {
+        SnippetResponse r = service.create(new SnippetRequest("t", "c", null));
+        assertThat(r.kind()).isEqualTo(SnippetKind.NOTE);
+        assertThat(r.source()).isEqualTo(SnippetSource.MANUAL);
+    }
+
+    @Test
+    void createHonoursExplicitKindAndSource() {
+        SnippetResponse r = service.create(new SnippetRequest("t", "c", null, SnippetKind.CLIP, SnippetSource.CLIPBOARD));
+        assertThat(r.kind()).isEqualTo(SnippetKind.CLIP);
+        assertThat(r.source()).isEqualTo(SnippetSource.CLIPBOARD);
+        assertThat(service.get(r.id()).kind()).isEqualTo(SnippetKind.CLIP);
+    }
+
+    @Test
+    void updateWithoutKindKeepsKindAndSourceIsImmutable() {
+        SnippetResponse c = service.create(new SnippetRequest("t", "c", null, SnippetKind.CODE, SnippetSource.ALMA));
+        SnippetResponse u = service.update(c.id(), new SnippetRequest("t2", "c2", null, null, SnippetSource.CLIPBOARD));
+        assertThat(u.kind()).isEqualTo(SnippetKind.CODE);
+        assertThat(u.source()).isEqualTo(SnippetSource.ALMA);
+        assertThat(service.get(c.id()).source()).isEqualTo(SnippetSource.ALMA);
+        SnippetResponse u2 = service.update(c.id(), new SnippetRequest("t3", "c3", null, SnippetKind.CLIP, null));
+        assertThat(u2.kind()).isEqualTo(SnippetKind.CLIP);
+    }
+
+    @Test
+    void listFiltersByKind() {
+        service.create(new SnippetRequest("a", "", null, SnippetKind.CODE, null));
+        service.create(new SnippetRequest("b", "", null));
+        assertThat(service.list(0, 20, SnippetKind.CODE).items()).extracting(SnippetResponse::title).containsExactly("a");
+        assertThat(service.list(0, 20, SnippetKind.CODE).totalElements()).isEqualTo(1);
+        assertThat(service.list(0, 20, null).items()).hasSize(2);
     }
 }

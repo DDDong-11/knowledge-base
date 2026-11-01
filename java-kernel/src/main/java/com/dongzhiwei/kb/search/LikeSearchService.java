@@ -1,9 +1,11 @@
 package com.dongzhiwei.kb.search;
 
 import com.dongzhiwei.kb.domain.Snippet;
+import com.dongzhiwei.kb.domain.SnippetKind;
 import com.dongzhiwei.kb.dto.SearchHit;
 import com.dongzhiwei.kb.dto.SnippetResponse;
 import com.dongzhiwei.kb.repository.SnippetRepository;
+import com.dongzhiwei.kb.service.SnippetService;
 import com.dongzhiwei.kb.support.TagNormalizer;
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
@@ -34,13 +36,13 @@ public class LikeSearchService implements SearchService {
     }
 
     @Override
-    public List<SearchHit> search(String query, int limit) {
+    public List<SearchHit> search(String query, int limit, SnippetKind kind) {
         List<String> terms = terms(query);
         if (terms.isEmpty() || limit <= 0) return List.of();
 
         Sort recent = Sort.by(Sort.Order.desc("updateTime"), Sort.Order.desc("id"));
         List<Snippet> candidates = repository
-                .findAll(matchAll(terms), PageRequest.of(0, MAX_CANDIDATES, recent))
+                .findAll(matchAll(terms).and(SnippetService.kindIs(kind)), PageRequest.of(0, MAX_CANDIDATES, recent))
                 .getContent();
 
         List<SearchHit> hits = new ArrayList<>(candidates.size());

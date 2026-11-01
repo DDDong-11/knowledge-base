@@ -3,7 +3,13 @@ CREATE TABLE IF NOT EXISTS snippet (
     title       VARCHAR(200)  NOT NULL,
     content     CHARACTER LARGE OBJECT,
     tags        VARCHAR(1000),
+    kind        VARCHAR(16)   DEFAULT 'NOTE'   NOT NULL,
+    source      VARCHAR(16)   DEFAULT 'MANUAL' NOT NULL,
     create_time TIMESTAMP(6)  NOT NULL,
     update_time TIMESTAMP(6)  NOT NULL
 );
+-- 第 5 步迁移：兼容第 1-4 步建出的旧库文件（幂等；字段再增加时改用 Flyway）
+ALTER TABLE snippet ADD COLUMN IF NOT EXISTS kind   VARCHAR(16) DEFAULT 'NOTE'   NOT NULL;
+ALTER TABLE snippet ADD COLUMN IF NOT EXISTS source VARCHAR(16) DEFAULT 'MANUAL' NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_snippet_update_time ON snippet (update_time);
+CREATE INDEX IF NOT EXISTS idx_snippet_kind ON snippet (kind);

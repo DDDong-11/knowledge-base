@@ -26,6 +26,15 @@ public class Snippet {
     @Column(length = 1000)
     private String tags;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private SnippetKind kind = SnippetKind.NOTE;
+
+    /** 来源创建时确定，之后不可改 */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16, updatable = false)
+    private SnippetSource source = SnippetSource.MANUAL;
+
     @Column(name = "create_time", nullable = false, updatable = false)
     private LocalDateTime createTime;
 
@@ -39,6 +48,10 @@ public class Snippet {
     public void setContent(String content) { this.content = content; }
     public String getTags() { return tags; }
     public void setTags(String tags) { this.tags = tags; }
+    public SnippetKind getKind() { return kind; }
+    public void setKind(SnippetKind kind) { this.kind = kind; }
+    public SnippetSource getSource() { return source; }
+    public void setSource(SnippetSource source) { this.source = source; }
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
     public LocalDateTime getUpdateTime() { return updateTime; }

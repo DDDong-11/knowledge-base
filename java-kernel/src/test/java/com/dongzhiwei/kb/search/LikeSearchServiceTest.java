@@ -1,5 +1,6 @@
 package com.dongzhiwei.kb.search;
 
+import com.dongzhiwei.kb.domain.SnippetKind;
 import com.dongzhiwei.kb.dto.SearchHit;
 import com.dongzhiwei.kb.dto.SnippetRequest;
 import com.dongzhiwei.kb.repository.SnippetRepository;
@@ -92,5 +93,18 @@ class LikeSearchServiceTest {
         for (int i = 0; i < 5; i++) add("note " + i, "c");
         assertThat(searchService.search("   ", 20)).isEmpty();
         assertThat(searchService.search("note", 3)).hasSize(3);
+    }
+
+    @Test
+    void kindFilterIsAnExtraAndConditionKeepingRanking() {
+        long codeTitle = snippetService.create(new SnippetRequest("redis cli", "x", null, SnippetKind.CODE, null)).id();
+        long note = add("redis note", "y");
+        long codeContent = snippetService.create(new SnippetRequest("other", "redis-cli ping", null, SnippetKind.CODE, null)).id();
+
+        assertThat(ids(searchService.search("redis", 20))).containsExactlyInAnyOrder(codeTitle, note, codeContent);
+        assertThat(ids(searchService.search("redis", 20, SnippetKind.CODE))).containsExactly(codeTitle, codeContent);
+        assertThat(ids(searchService.search("redis", 20, SnippetKind.NOTE))).containsExactly(note);
+        assertThat(searchService.search("redis", 20, SnippetKind.CLIP)).isEmpty();
+        assertThat(ids(searchService.search("redis", 20, null))).hasSize(3);
     }
 }

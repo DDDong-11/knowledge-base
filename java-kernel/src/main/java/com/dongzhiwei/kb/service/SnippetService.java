@@ -1,6 +1,8 @@
 package com.dongzhiwei.kb.service;
 
 import com.dongzhiwei.kb.domain.Snippet;
+import com.dongzhiwei.kb.domain.SnippetKind;
+import com.dongzhiwei.kb.domain.SnippetSource;
 import com.dongzhiwei.kb.dto.PageResponse;
 import com.dongzhiwei.kb.dto.SnippetRequest;
 import com.dongzhiwei.kb.dto.SnippetResponse;
@@ -8,6 +10,7 @@ import com.dongzhiwei.kb.repository.SnippetRepository;
 import com.dongzhiwei.kb.support.TagNormalizer;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +34,8 @@ public class SnippetService {
     public SnippetResponse create(SnippetRequest req) {
         Snippet s = new Snippet();
         apply(s, req);
+        s.setKind(req.kind() == null ? SnippetKind.NOTE : req.kind());
+        s.setSource(req.source() == null ? SnippetSource.MANUAL : req.source());
         LocalDateTime now = now();
         s.setCreateTime(now);
         s.setUpdateTime(now);
@@ -45,6 +50,8 @@ public class SnippetService {
     public SnippetResponse update(Long id, SnippetRequest req) {
         Snippet s = load(id);
         apply(s, req);
+        // kind 缺省保留原值（老客户端不会把类型冲掉）；source 不可改
+        if (req.kind() != null) s.setKind(req.kind());
         s.setUpdateTime(now());
         return SnippetResponse.from(repository.saveAndFlush(s));
     }
@@ -54,9 +61,15 @@ public class SnippetService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<SnippetResponse> list(int page, int size) {
+    public PageResponse<SnippetResponse> list(int page, int size, SnippetKind kind) {
         Sort sort = Sort.by(Sort.Order.desc("updateTime"), Sort.Order.desc("id"));
-        return PageResponse.of(repository.findAll(PageRequest.of(page, size, sort)), SnippetResponse::from);
+        return PageResponse.of(repository.findAll(kindIs(kind), PageRequest.of(page, size, sort)),
+                SnippetResponse::from);
+    }
+
+    /** kind 为 null 表示不过滤 */
+    public static Specification<Snippet> kindIs(SnippetKind kind) {
+        return (root, cq, cb) -> kind == null ? cb.conjunction() : cb.equal(root.get("kind"), kind);
     }
 
     /** 所有标签去重（大小写不敏感，保留首个写法的小写形式）并排序 */

@@ -169,4 +169,70 @@ class SnippetControllerTest {
         assertThat(env.getProperty("server.address")).isEqualTo("127.0.0.1");
         assertThat(env.getProperty("server.port")).isEqualTo("17321");
     }
+
+    @Test
+    void kindAndSourceRoundTripAndFilters() throws Exception {
+        mvc.perform(post("/api/snippets").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"docker prune\",\"content\":\"docker system prune\",\"kind\":\"CODE\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.kind").value("CODE"))
+                .andExpect(jsonPath("$.source").value("MANUAL"));
+        long note = create("docker note", "remember", "[]");
+        mvc.perform(get("/api/snippets/{id}", note))
+                .andExpect(jsonPath("$.kind").value("NOTE"))
+                .andExpect(jsonPath("$.source").value("MANUAL"));
+        mvc.perform(get("/api/snippets").param("kind", "CODE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].kind").value("CODE"))
+                .andExpect(jsonPath("$.totalElements").value(1));
+        mvc.perform(get("/api/snippets"))
+                .andExpect(jsonPath("$.items", hasSize(2)));
+        mvc.perform(get("/api/snippets/search").param("q", "docker").param("kind", "NOTE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.hits[0].snippet.kind").value("NOTE"));
+        mvc.perform(get("/api/snippets/search").param("q", "docker"))
+                .andExpect(jsonPath("$.total").value(2));
+    }
+
+    @Test
+    void putWithoutKindKeepsKindAndIgnoresSource() throws Exception {
+        String json = mvc.perform(post("/api/snippets").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"t\",\"kind\":\"CODE\",\"source\":\"ALMA\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.source").value("ALMA"))
+                .andReturn().getResponse().getContentAsString();
+        long id = om.readTree(json).get("id").asLong();
+        mvc.perform(put("/api/snippets/{id}", id).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"t2\",\"source\":\"MANUAL\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.kind").value("CODE"))
+                .andExpect(jsonPath("$.source").value("ALMA"));
+        mvc.perform(put("/api/snippets/{id}", id).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"t3\",\"kind\":\"NOTE\"}"))
+                .andExpect(jsonPath("$.kind").value("NOTE"));
+    }
+
+    @Test
+    void badEnumGives400BadRequestListingAllowedValues() throws Exception {
+        mvc.perform(post("/api/snippets").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"t\",\"kind\":\"BOGUS\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.message", allOf(containsString("BOGUS"), containsString("kind"),
+                        containsString("CODE, NOTE, CLIP"))));
+        mvc.perform(post("/api/snippets").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"t\",\"source\":\"WEB\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.message", containsString("MANUAL, CLIPBOARD, ALMA")));
+        mvc.perform(get("/api/snippets").param("kind", "bogus"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.message", allOf(containsString("kind"), containsString("CODE, NOTE, CLIP"))));
+        mvc.perform(get("/api/snippets/search").param("q", "x").param("kind", "nope"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"));
+    }
 }

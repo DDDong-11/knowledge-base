@@ -2,6 +2,8 @@ package com.dongzhiwei.kb.web;
 
 import com.dongzhiwei.kb.dto.ErrorResponse;
 import com.dongzhiwei.kb.service.SnippetNotFoundException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -20,7 +22,9 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /** 统一 JSON 错误体：{timestamp,status,error,message,path,fieldErrors?} */
 @RestControllerAdvice
@@ -65,12 +69,33 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ErrorResponse> unreadable(HttpMessageNotReadableException e, HttpServletRequest req) {
+        if (e.getCause() instanceof InvalidFormatException ife && ife.getTargetType() != null
+                && ife.getTargetType().isEnum()) {
+            List<JsonMappingException.Reference> path = ife.getPath();
+            String field = path.isEmpty() ? "value" : path.get(path.size() - 1).getFieldName();
+            return body(HttpStatus.BAD_REQUEST, "BAD_REQUEST",
+                    enumMessage(field, ife.getValue(), ife.getTargetType()), req, null);
+        }
         return body(HttpStatus.BAD_REQUEST, "MALFORMED_REQUEST", "request body is missing or not valid JSON", req, null);
     }
 
-    @ExceptionHandler({MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class})
-    ResponseEntity<ErrorResponse> badParam(Exception e, HttpServletRequest req) {
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    ResponseEntity<ErrorResponse> missingParam(MissingServletRequestParameterException e, HttpServletRequest req) {
         return body(HttpStatus.BAD_REQUEST, "BAD_REQUEST", e.getMessage(), req, null);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    ResponseEntity<ErrorResponse> typeMismatch(MethodArgumentTypeMismatchException e, HttpServletRequest req) {
+        Class<?> type = e.getRequiredType();
+        String message = type != null && type.isEnum() ? enumMessage(e.getName(), e.getValue(), type) : e.getMessage();
+        return body(HttpStatus.BAD_REQUEST, "BAD_REQUEST", message, req, null);
+    }
+
+    /** 非法枚举值的统一提示，列出合法值（区分大小写） */
+    static String enumMessage(String field, Object value, Class<?> enumType) {
+        String allowed = Arrays.stream(enumType.getEnumConstants()).map(Object::toString)
+                .collect(Collectors.joining(", "));
+        return "invalid value '" + value + "' for " + field + "; allowed: " + allowed;
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
