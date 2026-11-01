@@ -1,0 +1,18 @@
+{
+  "name": "kb-electron",
+  "version": "0.1.0",
+  "private": true,
+  "description": "个人开发知识库 - Electron 视图层",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/copy-renderer.mjs",
+    "test": "npm run build && node --test dist/main/kernelClient.test.js dist/main/token.test.js",
+    "start": "npm run build && electron .",
+    "package-kernel": "cd ../java-kernel && ./mvnw -DskipTests package"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "electron": "^33.2.0",
+    "typescript": "^5.7.2"
+  }
+}
