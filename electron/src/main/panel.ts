@@ -1,5 +1,5 @@
 import { BrowserWindow, screen } from 'electron';
-import { computePanelPosition, PANEL_SIZE, type Rect } from './panelPosition';
+import { computePanelPosition, PANEL_SIZE, shouldShowOnToggle, type Rect } from './panelPosition';
 
 export type Panel = {
   window: BrowserWindow;
@@ -51,9 +51,19 @@ export function createPanel(opts: PanelOptions): Panel {
     },
   });
 
+  // 菜单栏面板应在当前 Space / 全屏应用之上弹出，而不是把用户拽回原来的桌面
+  if (process.platform === 'darwin') win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e) => e.preventDefault());
-  if (!opts.pin) win.on('blur', () => win.hide());
+  let lastBlurHideAt = 0;
+  if (!opts.pin) {
+    win.on('blur', () => {
+      if (!win.isVisible()) return;
+      lastBlurHideAt = Date.now();
+      win.hide();
+    });
+  }
 
   if (opts.rendererUrl !== undefined && !isAllowedDevUrl(opts.rendererUrl)) {
     console.warn(`ignoring KB_RENDERER_URL=${opts.rendererUrl}: only http://localhost or http://127.0.0.1 allowed`);
@@ -79,7 +89,10 @@ export function createPanel(opts: PanelOptions): Panel {
     window: win,
     show,
     hide,
-    toggle: (trayBounds) => (win.isVisible() ? hide() : show(trayBounds)),
+    toggle: (trayBounds) => {
+      if (win.isVisible()) hide();
+      else if (shouldShowOnToggle({ visible: false, lastBlurHideAt, now: Date.now() })) show(trayBounds);
+    },
     isTrusted: (sender) => !win.isDestroyed() && sender === win.webContents,
     destroy: () => {
       if (!win.isDestroyed()) win.destroy();

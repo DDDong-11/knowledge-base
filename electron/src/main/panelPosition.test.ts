@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { computePanelPosition, PANEL_MARGIN, PANEL_SIZE } from './panelPosition';
+import { BLUR_TOGGLE_GRACE_MS, computePanelPosition, PANEL_MARGIN, PANEL_SIZE, shouldShowOnToggle } from './panelPosition';
 
 const mac = { x: 0, y: 25, width: 1440, height: 875 };
 
@@ -48,4 +48,20 @@ test('all-zero tray bounds fall back to top-right corner of work area', () => {
     computePanelPosition({ x: 0, y: 0, width: 0, height: 0 }, PANEL_SIZE, { x: 1440, y: 25, width: 1920, height: 1055 }),
     { x: 1440 + 1920 - 360 - 8, y: 25 + 8 },
   );
+});
+
+test('toggle: visible panel → hide', () => {
+  assert.equal(shouldShowOnToggle({ visible: true, lastBlurHideAt: 0, now: 10_000 }), false);
+});
+
+test('toggle: hidden long ago → show', () => {
+  assert.equal(shouldShowOnToggle({ visible: false, lastBlurHideAt: 1_000, now: 10_000 }), true);
+});
+
+test('toggle: just hidden by the blur that clicking the tray icon caused → stay hidden', () => {
+  assert.equal(shouldShowOnToggle({ visible: false, lastBlurHideAt: 10_000 - 100, now: 10_000 }), false);
+});
+
+test('toggle: exactly BLUR_TOGGLE_GRACE_MS after blur-hide → show', () => {
+  assert.equal(shouldShowOnToggle({ visible: false, lastBlurHideAt: 10_000 - BLUR_TOGGLE_GRACE_MS, now: 10_000 }), true);
 });

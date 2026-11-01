@@ -27,3 +27,15 @@ export function computePanelPosition(tray: Rect, panel: Size, workArea: Rect): {
   const y = clamp(Math.round(rawY), wa.y, wa.y + wa.height - panel.height);
   return { x, y };
 }
+
+/**
+ * macOS：面板可见时点击菜单栏图标，会先触发面板 blur（→ 隐藏），随后才触发 tray click。
+ * 若 click 只看 isVisible() 会把刚隐藏的面板又弹出来，导致「点图标收不起来」。
+ * 在 blur 隐藏后的短窗口内，把 toggle 视为「收起」。
+ */
+export const BLUR_TOGGLE_GRACE_MS = 250;
+
+export function shouldShowOnToggle(s: { visible: boolean; lastBlurHideAt: number; now: number }): boolean {
+  if (s.visible) return false;
+  return s.now - s.lastBlurHideAt >= BLUR_TOGGLE_GRACE_MS;
+}
